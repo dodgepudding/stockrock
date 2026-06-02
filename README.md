@@ -107,9 +107,12 @@ cd web && npm install && npm run dev
 | `STOCKROCK_DATA_PROVIDER` | `akshare` 或 `tushare` |
 | `TUSHARE_TOKEN` | Tushare Pro Token |
 | `STOCKROCK_CACHE_DIR` | 缓存目录 |
+| `STOCKROCK_WATCHLIST_PATH` | 自选持久化文件路径（默认 `data/watchlist.json`） |
 | `STOCKROCK_CACHE_INCREMENTAL_OVERLAP_DAYS` | 增量更新时与缓存重叠天数（默认 5，防复权修正） |
 | `STOCKROCK_LOOKBACK_DAYS` | 默认回看天数 |
 | `STOCKROCK_SCREEN_WORKERS` | 全市场扫描并行线程数（默认 `min(16, CPU×2)`，适合 I/O 型行情拉取） |
+| `STOCKROCK_HOST` | API 监听地址（默认 `0.0.0.0`） |
+| `STOCKROCK_PORT` | API 端口（默认 `8000`） |
 
 全市场扫描使用线程池并行拉取 K 线与策略判定。线程过多可能触发 AKShare 等接口限流，可适当调低 `STOCKROCK_SCREEN_WORKERS`（例如 `4`）。
 

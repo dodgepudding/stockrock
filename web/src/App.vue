@@ -286,7 +286,7 @@ onMounted(() => {
 
 <template>
   <h1>Stockrock</h1>
-  <p class="subtitle">通达信公式 → Python 策略 · A股全市场选股</p>
+  <p class="subtitle">潜伏类量化策略助手 · A股全市场选股</p>
 
   <nav class="tabs">
     <button
