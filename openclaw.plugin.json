@@ -1,0 +1,27 @@
+{
+  "id": "stockrock",
+  "name": "stockrock",
+  "version": "0.1.0",
+  "description": "A-share stock screener with Tongdaxin-style indicators, Web UI, and watchlist",
+  "skills": ["./skills"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "repoPath": {
+        "type": "string",
+        "description": "Absolute path to stockrock repository root"
+      },
+      "apiBase": {
+        "type": "string",
+        "description": "Stockrock API base URL",
+        "default": "http://127.0.0.1:8000"
+      },
+      "autoStart": {
+        "type": "boolean",
+        "description": "Whether agent may start uvicorn if API is down",
+        "default": false
+      }
+    }
+  }
+}
