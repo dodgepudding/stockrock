@@ -170,6 +170,21 @@ th {
   font-size: 0.8rem;
 }
 
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+th.sortable:hover {
+  color: var(--text);
+}
+
+.sort-indicator {
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
 tr:hover td {
   background: rgba(59, 130, 246, 0.06);
 }

@@ -19,6 +19,10 @@ SECTOR_CANDIDATE_COLUMNS = ("所属行业", "行业", "板块", "概念")
 _sector_cache: dict[str, str] | None = None
 _sector_cache_at: datetime | None = None
 _sector_lock = threading.Lock()
+_symbol_name_cache: dict[str, str] | None = None
+_symbol_name_cache_at: datetime | None = None
+_symbol_name_lock = threading.Lock()
+SYMBOL_NAME_CACHE_TTL_SECONDS = 86400
 
 
 def _normalize_code(code: str) -> str:
@@ -149,6 +153,63 @@ def fetch_major_sectors(codes: list[str]) -> dict[str, str]:
         s = board_map.get(c)
         if s:
             out[c] = s
+    return out
+
+
+def _load_symbol_name_map() -> dict[str, str]:
+    global _symbol_name_cache, _symbol_name_cache_at
+    with _symbol_name_lock:
+        now = datetime.now()
+        if (
+            _symbol_name_cache is not None
+            and _symbol_name_cache_at is not None
+            and (now - _symbol_name_cache_at).total_seconds() < SYMBOL_NAME_CACHE_TTL_SECONDS
+        ):
+            return _symbol_name_cache
+        try:
+            from stockrock.data.cached_provider import CachedDataProvider
+
+            df = CachedDataProvider().list_symbols()
+            mapping = {
+                _normalize_code(str(row["code"])): str(row["name"]).strip()
+                for _, row in df.iterrows()
+                if str(row.get("name") or "").strip()
+            }
+        except Exception:
+            mapping = _symbol_name_cache or {}
+        _symbol_name_cache = mapping
+        _symbol_name_cache_at = now
+        return mapping
+
+
+def fetch_stock_names(codes: list[str]) -> dict[str, str]:
+    """Resolve stock names: spot table first, then full A-share symbol list."""
+    if not codes:
+        return {}
+    code_set = {_normalize_code(c) for c in codes}
+    out: dict[str, str] = {}
+
+    try:
+        spot = _load_spot_table()
+        df = spot[spot["代码"].isin(code_set)]
+        for _, row in df.iterrows():
+            code = _normalize_code(row["代码"])
+            val = row.get("名称")
+            if val is None or pd.isna(val):
+                continue
+            name = str(val).strip()
+            if name:
+                out[code] = name
+    except Exception:
+        pass
+
+    missing = [c for c in code_set if c not in out]
+    if missing:
+        name_map = _load_symbol_name_map()
+        for c in missing:
+            name = name_map.get(c)
+            if name:
+                out[c] = name
     return out
 
 
@@ -300,6 +361,7 @@ def fetch_quotes(codes: list[str]) -> list[dict]:
     code_list = sorted({_normalize_code(c) for c in codes})
     trading = is_a_share_trading_session()
     sector_map = fetch_major_sectors(code_list)
+    name_map = fetch_stock_names(code_list)
 
     spot_map: dict[str, dict] = {}
     if trading:
@@ -313,12 +375,16 @@ def fetch_quotes(codes: list[str]) -> list[dict]:
         if trading and code in spot_map:
             if code in sector_map and "major_sector" not in spot_map[code]:
                 spot_map[code]["major_sector"] = sector_map[code]
+            if code in name_map and not spot_map[code].get("name"):
+                spot_map[code]["name"] = name_map[code]
             out.append(spot_map[code])
             continue
         close_q = _fetch_last_close(code)
         if close_q:
             if code in sector_map:
                 close_q["major_sector"] = sector_map[code]
+            if code in name_map:
+                close_q["name"] = name_map[code]
             out.append(close_q)
         else:
             out.append(

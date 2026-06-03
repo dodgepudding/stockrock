@@ -37,6 +37,44 @@ def test_watchlist_quotes_keeps_items_on_fetch_fail(tmp_path):
             assert data["items"][0].get("quote_error")
 
 
+def test_watchlist_auto_fill_name_on_add(tmp_path):
+    store = WatchlistStore(path=tmp_path / "wl4.json")
+
+    with patch("stockrock.api.watchlist_routes._store", store):
+        with patch(
+            "stockrock.api.watchlist_routes.fetch_stock_names",
+            return_value={"600519": "贵州茅台"},
+        ):
+            with patch(
+                "stockrock.api.watchlist_routes._prices_for_codes",
+                return_value={"600519": 100.0},
+            ):
+                client = TestClient(app)
+                r = client.post("/api/watchlist", json={"code": "600519"})
+                assert r.status_code == 200
+                assert r.json()["item"]["name"] == "贵州茅台"
+
+
+def test_watchlist_quotes_persists_missing_name(tmp_path):
+    store = WatchlistStore(path=tmp_path / "wl5.json")
+    store.add("600519", "")
+
+    with patch("stockrock.api.watchlist_routes._store", store):
+        with patch(
+            "stockrock.api.watchlist_routes.fetch_quotes",
+            return_value=[{"code": "600519", "price": 100.0, "name": "贵州茅台"}],
+        ):
+            with patch(
+                "stockrock.api.watchlist_routes.fetch_stock_names",
+                return_value={},
+            ):
+                client = TestClient(app)
+                r = client.get("/api/watchlist/quotes")
+                assert r.status_code == 200
+                assert r.json()["items"][0]["name"] == "贵州茅台"
+                assert store.list_items()[0]["name"] == "贵州茅台"
+
+
 def test_watchlist_buy_sell_and_clear(tmp_path):
     store = WatchlistStore(path=tmp_path / "wl3.json")
     store.add("600519", "茅台")

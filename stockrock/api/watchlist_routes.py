@@ -1,8 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from stockrock.watchlist.quotes import calc_initial_change_pct, fetch_quotes
-from stockrock.watchlist.quotes import _normalize_code
+from stockrock.watchlist.quotes import (
+    _normalize_code,
+    calc_initial_change_pct,
+    fetch_quotes,
+    fetch_stock_names,
+)
 from stockrock.watchlist.store import WatchlistStore
 
 router = APIRouter(prefix="/api/watchlist")
@@ -85,6 +89,24 @@ def _trade_summary(trades: list[dict], current_price: float | None = None) -> di
     }
 
 
+def _persist_missing_names(items: list[dict], quotes_by_code: dict[str, dict]) -> None:
+    names_to_save: dict[str, str] = {}
+    for it in items:
+        if (it.get("name") or "").strip():
+            continue
+        code = it["code"]
+        qname = (quotes_by_code.get(code, {}).get("name") or "").strip()
+        if qname:
+            names_to_save[code] = qname
+    still_missing = [
+        it["code"] for it in items if not (it.get("name") or "").strip() and it["code"] not in names_to_save
+    ]
+    if still_missing:
+        names_to_save.update(fetch_stock_names(still_missing))
+    if names_to_save:
+        _store.enrich_names(names_to_save)
+
+
 def _merge_items_with_quotes(items: list[dict]) -> tuple[list[dict], str | None]:
     """Always return one row per watchlist item; quotes optional."""
     if not items:
@@ -96,6 +118,8 @@ def _merge_items_with_quotes(items: list[dict]) -> tuple[list[dict], str | None]
         quotes_by_code = {q["code"]: q for q in quotes}
     except Exception as e:
         global_error = str(e)
+
+    _persist_missing_names(items, quotes_by_code)
 
     merged = []
     for it in items:
@@ -137,6 +161,12 @@ def _prices_for_codes(codes: list[str]) -> dict[str, float | None]:
 @router.get("")
 def get_watchlist():
     items = _store.list_items()
+    missing = [it["code"] for it in items if not (it.get("name") or "").strip()]
+    if missing:
+        names = fetch_stock_names(missing)
+        if names:
+            _store.enrich_names(names)
+            items = _store.list_items()
     return {"items": items, "count": len(items)}
 
 
@@ -146,9 +176,12 @@ def add_to_watchlist(req: WatchlistAddRequest):
         raise HTTPException(status_code=400, detail="code is required")
     code = _normalize_code(req.code)
     prices = _prices_for_codes([code])
+    name = req.name.strip()
+    if not name:
+        name = fetch_stock_names([code]).get(code, "")
     item = _store.add(
         code,
-        req.name,
+        name,
         initial_price=prices.get(code),
         source_strategy=req.source_strategy,
     )
@@ -166,10 +199,13 @@ def add_batch(req: WatchlistBatchRequest):
         if not i.code.strip():
             continue
         c = _normalize_code(i.code)
+        name = i.name.strip()
+        if not name:
+            name = fetch_stock_names([c]).get(c, "")
         entries.append(
             {
                 "code": i.code,
-                "name": i.name,
+                "name": name,
                 "initial_price": prices.get(c),
                 "source_strategy": i.source_strategy,
             }

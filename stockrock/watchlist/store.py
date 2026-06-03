@@ -88,6 +88,24 @@ class WatchlistStore:
             )
         return added
 
+    def enrich_names(self, names_by_code: dict[str, str]) -> int:
+        """Fill empty item names from external lookup; returns update count."""
+        if not names_by_code:
+            return 0
+        updated = 0
+        with self._lock:
+            data = self._read()
+            items = data.get("items", [])
+            for it in items:
+                code = it["code"]
+                new_name = (names_by_code.get(code) or "").strip()
+                if new_name and not (it.get("name") or "").strip():
+                    it["name"] = new_name
+                    updated += 1
+            if updated:
+                self._write(data)
+        return updated
+
     def remove(self, code: str) -> bool:
         code = _normalize_code(code)
         with self._lock:

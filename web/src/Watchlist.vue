@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 
 const items = ref([]);
 const loading = ref(false);
@@ -10,6 +10,8 @@ const manualCode = ref("");
 const manualName = ref("");
 const tradeLots = ref({});
 const tradePrice = ref({});
+const sortKey = ref(null);
+const sortDir = ref("asc");
 
 let refreshTimer = null;
 
@@ -179,6 +181,50 @@ function fmtDateTime(v) {
   return d.toLocaleString("zh-CN", { hour12: false });
 }
 
+function toggleSort(key) {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === "asc" ? "desc" : "asc";
+  } else {
+    sortKey.value = key;
+    sortDir.value = "asc";
+  }
+}
+
+function sortIndicator(key) {
+  if (sortKey.value !== key) return "";
+  return sortDir.value === "asc" ? " ↑" : " ↓";
+}
+
+const sortedItems = computed(() => {
+  const list = [...items.value];
+  if (!sortKey.value) return list;
+
+  const dir = sortDir.value === "asc" ? 1 : -1;
+  const key = sortKey.value;
+
+  return list.sort((a, b) => {
+    if (key === "code") {
+      return String(a.code || "").localeCompare(String(b.code || "")) * dir;
+    }
+    if (key === "added_at") {
+      const va = a.added_at ? new Date(a.added_at).getTime() : 0;
+      const vb = b.added_at ? new Date(b.added_at).getTime() : 0;
+      return (va - vb) * dir;
+    }
+    if (key === "initial_change_pct") {
+      const va = a.initial_change_pct;
+      const vb = b.initial_change_pct;
+      const aNull = va == null || Number.isNaN(va);
+      const bNull = vb == null || Number.isNaN(vb);
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      return (va - vb) * dir;
+    }
+    return 0;
+  });
+});
+
 onMounted(async () => {
   await loadList();
   loadQuotes();
@@ -242,16 +288,22 @@ defineExpose({ refreshAll, loadList });
     <table v-if="items.length">
       <thead>
         <tr>
-          <th>代码</th>
+          <th class="sortable" @click="toggleSort('code')">
+            代码<span class="sort-indicator">{{ sortIndicator("code") }}</span>
+          </th>
           <th>名称</th>
           <th>主要板块</th>
           <th>来源策略</th>
-          <th>加入时间</th>
+          <th class="sortable" @click="toggleSort('added_at')">
+            加入时间<span class="sort-indicator">{{ sortIndicator("added_at") }}</span>
+          </th>
           <th>价格</th>
           <th>涨跌幅</th>
           <th>涨跌额</th>
           <th>初始价</th>
-          <th>自选涨跌</th>
+          <th class="sortable" @click="toggleSort('initial_change_pct')">
+            自选涨跌<span class="sort-indicator">{{ sortIndicator("initial_change_pct") }}</span>
+          </th>
           <th>持仓(手)</th>
           <th>持仓浮盈%</th>
           <th>已实现盈亏%</th>
@@ -264,7 +316,7 @@ defineExpose({ refreshAll, loadList });
         </tr>
       </thead>
       <tbody>
-        <tr v-for="it in items" :key="it.code">
+        <tr v-for="it in sortedItems" :key="it.code">
           <td>{{ it.code }}</td>
           <td>{{ it.name || "—" }}</td>
           <td>{{ it.major_sector || "—" }}</td>
