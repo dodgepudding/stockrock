@@ -41,28 +41,31 @@ hermes plugins install ./plugins/stockrock --enable
 ```bash
 cd /path/to/stockrock
 python3.12 -m venv .venv   # 需要 Python 3.11+
-source .venv/bin/activate
-pip install -e ".[dev]"
+.venv/bin/python -m pip install -e ".[dev]"
 
 # 可选 Tushare
-pip install -e ".[tushare]"
+.venv/bin/python -m pip install -e ".[tushare]"
 
-cp .env.example .env
+test -f .env || cp .env.example .env
 ```
 
+前端依赖声明在 `web/package.json`（版本锁定见 `web/package-lock.json`），由 `npm install` 安装；后端依赖声明在 `pyproject.toml`，包括 `akshare`，由上面的 pip 命令安装。重新执行 `npm install` 不会安装 Python 后端依赖。
+
 ## 启动
+
+以下后端命令均在仓库根目录执行，显式使用 `.venv` 中的 Python；新开终端也无需激活虚拟环境。
 
 ### 仅 API（开发）
 
 ```bash
-uvicorn stockrock.api.main:app --host 0.0.0.0 --port 8000 --reload
+.venv/bin/python -m uvicorn stockrock.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### API + 前端
 
 ```bash
 cd web && npm install && npm run build && cd ..
-uvicorn stockrock.api.main:app --host 0.0.0.0 --port 8000
+.venv/bin/python -m uvicorn stockrock.api.main:app --host 0.0.0.0 --port 8000
 ```
 
 浏览器打开 http://localhost:8000
@@ -71,13 +74,26 @@ uvicorn stockrock.api.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 # 终端 1
-uvicorn stockrock.api.main:app --port 8000 --reload
+.venv/bin/python -m uvicorn stockrock.api.main:app --port 8000 --reload
 
 # 终端 2
 cd web && npm install && npm run dev
 ```
 
 访问 http://localhost:5173（Vite 代理 `/api` 到 8000）
+
+### 启动时报 `No module named 'akshare'`
+
+通常是启动命令使用了全局 Python，而依赖安装在项目 `.venv` 中，或尚未安装后端依赖。在仓库根目录执行：
+
+```bash
+.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m pip check
+.venv/bin/python -c 'import sys, akshare; print(sys.executable); print(akshare.__version__)'
+.venv/bin/python -m uvicorn stockrock.api.main:app --host 127.0.0.1 --port 8000
+```
+
+若 `.venv` 不存在，先按「安装」步骤创建。也可以先 `source .venv/bin/activate` 再使用 `python -m uvicorn`；每次新开终端都需要重新激活。
 
 ## 通达信公式工作流
 
@@ -119,7 +135,7 @@ cd web && npm install && npm run dev
 ## 测试
 
 ```bash
-pytest
+.venv/bin/python -m pytest
 ```
 
 ## 免责声明

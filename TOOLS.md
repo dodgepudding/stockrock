@@ -73,11 +73,11 @@ curl -s -X DELETE "$BASE/api/watchlist/600519"
 ## 终端一键启动服务
 
 ```bash
-cd /path/to/stockrock && source .venv/bin/activate
-uvicorn stockrock.api.main:app --host 127.0.0.1 --port 8000
+cd /path/to/stockrock
+.venv/bin/python -m uvicorn stockrock.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-或使用入口：`stockrock`（安装后 `pyproject` scripts）。
+或使用入口：`.venv/bin/stockrock`（安装后 `pyproject` scripts）。显式指定虚拟环境可避免新开终端时误用全局 Python。后端依赖需通过 `.venv/bin/python -m pip install -e ".[dev]"` 安装，`npm install` 仅安装前端依赖。
 
 ## Web UI
 
